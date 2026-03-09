@@ -147,8 +147,8 @@ body {
 }
 
 .large-video iframe {
-  width: 100%;
-  height: 100%;
+  width: 80%;
+  height: 80%;
   border: 0;
   display: block;
 }
