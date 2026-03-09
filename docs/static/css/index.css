@@ -140,7 +140,7 @@ body {
 }
 
 .large-video {
-  width: 100%;
+  width: 80%;
   max-width: 800px;
   margin: 0 auto;
   aspect-ratio: 16 / 9;
