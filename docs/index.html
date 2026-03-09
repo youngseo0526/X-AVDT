@@ -137,46 +137,75 @@
   </div>
 </section>
 
-
-<section class="section hero is-small is-light">
-  <div class="container is-max-desktop">
-    <div class="columns is-centered">
-      <div class="column is-full">
-        <div class="content">
-          <h2 class="title is-3">Input Features</h2>
-          <center>
-          <img src="static/images/fig2_input_features.png" alt="Input Features" class="center-image blend-img-background"/>
-          </center>
-          <div class="level-set has-text-justified">
+  <!-- Paper abstract -->
+  <section class="section hero is-light">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-four-fifths">
+          <h2 class="title is-3">Abstract</h2>
+          <div class="content has-text-justified">
             <p>
-              Input representations with complementary features. (a) video composite $\boldsymbol{\phi}$ is obtained from video $x$ and audio $c$ by running DDIM inversion and reconstruction, decoding both the noisy and clean latents, and computing the residual. We then concatenate four components channel-wise: $x$, $D(\hat z_T)$, $D(\hat z_0)$, and $\lvert x - D(\hat z_0)\rvert$. (b) AV cross-attention feature $\boldsymbol{\psi}$ is extracted during DDIM inversion from the diffusion U-Net and summarized as a frame-aligned tensor. These complementary cues (a) and (b) capture appearance information and modality alignment, respectively. For clarity, all visual elements shown ($D(\hat z_T)$, $D(\hat z_0)$, and $\lvert x - D(\hat z_0)\rvert$) are decoded images.
+              The surge of highly realistic synthetic videos produced by contemporary generative systems has significantly
+              increased the risk of malicious use, challenging both humans and existing detectors. Against this backdrop, 
+              we take a generator-side view and observe that internal cross-attention mechanisms in these models encode 
+              fine-grained speech–motion alignment, offering useful correspondence cues for forgery detection. 
+              Building on this insight, we propose <strong>X-AVDT</strong>, a robust and generalizable deepfake detector 
+              that probes generator-internal audio-visual signals accessed via DDIM inversion to expose these cues. 
+              X-AVDT extracts two complementary signals: (i) a video composite capturing inversion-induced discrepancies, 
+              and (ii) audio–visual cross-attention feature reflecting modality alignment enforced during generation. 
+              To enable faithful, cross-generator evaluation, we further introduce <strong>MMDF</strong>, 
+              a new multi-modal deepfake dataset spanning diverse manipulation types and rapidly evolving synthesis paradigms, 
+              including GANs, diffusion, and flow-matching. Extensive experiments demonstrate that X-AVDT achieves leading 
+              performance on MMDF and generalizes strongly to external benchmarks and unseen generators, outperforming existing 
+              methods with accuracy improved by <strong>+13.1\%</strong>. Our findings highlight the importance of leveraging internal 
+              audio–visual consistency cues for robustness to future generators in deepfake detection.
             </p>
           </div>
         </div>
       </div>
     </div>
-  </div>
+  </section>
+  <!-- End paper abstract -->
+
+  <section class="section hero">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column is-full">
+          <div class="content">
+            <h2 class="title is-3">Input Features</h2>
+            <center>
+            <img src="static/images/fig2_input_features.png" alt="Input Features" class="center-image blend-img-background"/>
+            </center>
+            <div class="level-set has-text-justified">
+              <p>
+                Input representations with complementary features. (a) video composite $\boldsymbol{\phi}$ is obtained from video $x$ and audio $c$ by running DDIM inversion and reconstruction, decoding both the noisy and clean latents, and computing the residual. We then concatenate four components channel-wise: $x$, $D(\hat z_T)$, $D(\hat z_0)$, and $\lvert x - D(\hat z_0)\rvert$. (b) AV cross-attention feature $\boldsymbol{\psi}$ is extracted during DDIM inversion from the diffusion U-Net and summarized as a frame-aligned tensor. These complementary cues (a) and (b) capture appearance information and modality alignment, respectively. For clarity, all visual elements shown ($D(\hat z_T)$, $D(\hat z_0)$, and $\lvert x - D(\hat z_0)\rvert$) are decoded images.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 </section>
 
 
-<section class="section hero is-small">
-  <div class="container is-max-desktop">
-    <div class="columns is-centered">
-      <div class="column is-full">
-        <div class="content">
-          <h2 class="title is-3">Overview</h2>
-          <center>
-          <img src="static/images/fig3_overview.png" alt="Overview of X-AVDT" class="center-image blend-img-background"/>
-          </center>
-          <div class="level-set has-text-justified">
-            <p>
-              From each audio-visual pair, we form two inputs $\boldsymbol{\phi}$ and $\boldsymbol{\psi}$. Two 3D encoders map them to features that are concatenated and passed through the Feature Fusion Decoder to produce a fused feature. A classification head outputs the real/fake score, while an embedding head is trained with a triplet objective to improve robustness.
-            </p>
+  <section class="section hero is-light">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column is-full">
+          <div class="content">
+            <h2 class="title is-3">Overview</h2>
+            <center>
+            <img src="static/images/fig3_overview.png" alt="Overview of X-AVDT" class="center-image blend-img-background"/>
+            </center>
+            <div class="level-set has-text-justified">
+              <p>
+                From each audio-visual pair, we form two inputs $\boldsymbol{\phi}$ and $\boldsymbol{\psi}$. Two 3D encoders map them to features that are concatenated and passed through the Feature Fusion Decoder to produce a fused feature. A classification head outputs the real/fake score, while an embedding head is trained with a triplet objective to improve robustness.
+              </p>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
 </section>
 
 <!--BibTex citation
