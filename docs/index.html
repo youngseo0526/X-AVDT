@@ -208,6 +208,43 @@
   </div>
 </section>
 
+<section class="section hero">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column">
+        <h2 class="title is-3">Temporally Averaged Cross-Attention Maps</h2>
+        <div class="content">
+          <img src="static/images/fig1_heatmap_vis.png" alt="" style="max-width: 100%; height: auto; margin-bottom: 20px;">
+          <p class="has-text-justified" style="font-size: 16px;">
+            For each video, we extract audio–visual cross-attention during DDIM inversion and average the maps over all 
+            frames to obtain a single heatmap. Real vs. fake samples exhibit consistent disparities.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section hero is-light">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column">
+        <h2 class="title is-3">Cross-Attention Robustness</h2>
+        <div class="content">
+          <img src="static/images/figd2_roi.png" alt="" style="max-width: 100%; height: auto; margin-bottom: 20px;">
+          <p class="has-text-justified" style="font-size: 16px;">
+            Top-<sub>q</sub> attention mass coverage within the face ROI: real videos concentrate the top-$q$ mass in a smaller ROI, 
+            whereas synthesized videos consistently require coverage of a larger ROI coverage (left). Moreover, the <sub>Delta</sub> attention 
+            maps reveal a coherent spatial contrast pattern: attention for real videos is concentrated on the mouth and background, 
+            while attention for fake videos is more broadly distributed along the face boundary (right). 
+            This pattern persists across two different inversion sources, Hallo, our backbone generator, and Echomimic.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 
 <section class="section hero">
   <div class="container is-max-desktop">
@@ -216,7 +253,7 @@
         <h2 class="title is-3">Quantitative Comparison</h2>
         <div class="content">
 
-          <h3 class="title">Quantitative Comparison on the MMDF dataset</h3>
+          <h3 class="title">Quantitative Comparison on the MMDF Dataset</h3>
           <img src="static/images/table4_mmdf.png" alt=""
             style="max-width: 100%; height: auto; margin-bottom: 20px;">
           <p class="has-text-justified" style="font-size: 16px;">
@@ -225,7 +262,7 @@
             <sup>*</sup>Note: FACTOR is a zero-shot method, while AVAD and AVH-Align are unsupervised methods.
           </p>
 
-          <h3 class="title">Quantitative Comparison on the benchmark dataset</h3>
+          <h3 class="title">Quantitative Comparison on the Benchmark Dataset</h3>
           <img src="static/images/table5_benchmark.png" alt="" style="max-width: 60%; height: auto; margin-bottom: 20px;">
           <p class="has-text-justified" style="font-size: 16px;">
             Detectors are trained on the MMDF training set and evaluated on FakeAVCeleb and FaceForensics++, respectively. 
