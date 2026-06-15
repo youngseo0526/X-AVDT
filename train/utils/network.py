@@ -2,15 +2,27 @@ import torch
 import torch.nn as nn
 from torchvision.transforms.functional import normalize
 
+
 class ProjectionHead(nn.Module):
+    """Projection head for the (triplet) contrastive embedding.
+
+    NOTE: the released checkpoint stores the inner Sequential weights under
+    indices `proj.0` and `proj.2` (i.e. a parameter-free layer sits at index 1).
+    We therefore use LayerNorm -> GELU -> Linear so the state_dict keys are
+    `proj.0.{weight,bias}` (LayerNorm) and `proj.2.{weight,bias}` (Linear),
+    matching `img_proj.*` / `attn_proj.*` in the checkpoint.
+    """
     def __init__(self, in_dim=1024, proj_dim=512):
         super().__init__()
         self.proj = nn.Sequential(
-            nn.LayerNorm(in_dim),
-            nn.Linear(in_dim, proj_dim)
+            nn.LayerNorm(in_dim),   # proj.0
+            nn.GELU(),              # proj.1 (no params -> index 1 skipped in state_dict)
+            nn.Linear(in_dim, proj_dim),  # proj.2
         )
+
     def forward(self, x):
         return self.proj(x)
+
 
 def get_norm(norm_type, num_features, dim=3):
     if norm_type == "batch":
@@ -21,6 +33,7 @@ def get_norm(norm_type, num_features, dim=3):
         return nn.GroupNorm(1, num_features)
     else:
         raise ValueError(f"Unsupported norm layer: {norm_type}")
+
 
 class ResNeXtBottleneck3D(nn.Module):
     expansion = 1
@@ -58,6 +71,7 @@ class ResNeXtBottleneck3D(nn.Module):
         out = self.relu(out)
         return out
 
+
 class ResNeXt_imgencoder(nn.Module):
     def __init__(self, block, layers, is_res_feat=True, cardinality=32, base_width=4, norm_type="batch"):
         super().__init__()
@@ -85,8 +99,10 @@ class ResNeXt_imgencoder(nn.Module):
         x = self.layer3(x)
         return x
 
+
 def get_img_encoder(is_res_feat=True, norm_type="batch"):
     return ResNeXt_imgencoder(ResNeXtBottleneck3D, [2, 3, 3], cardinality=32, base_width=4, is_res_feat=is_res_feat, norm_type=norm_type)
+
 
 class ResNeXt_attnfeatencoder(nn.Module):
     def __init__(self, block, layers, cardinality=32, base_width=4, norm_type="batch", in_channels_2d=320):
@@ -116,8 +132,12 @@ class ResNeXt_attnfeatencoder(nn.Module):
         x = self.layer3(x)
         return x
 
+
 def get_feat_encoder(is_res_feat=True, norm_type="batch", in_channels_2d=320):
-    return ResNeXt_attnfeatencoder(ResNeXtBottleneck3D, [2,2,4], cardinality=32, base_width=4, norm_type=norm_type, in_channels_2d=in_channels_2d)
+    # Checkpoint `sa_triplet_dec_bs8_800_es.pt` has only layer3.{0,1}
+    # (no layer3.2 / layer3.3), i.e. layer3 holds 2 blocks -> [2, 2, 2].
+    return ResNeXt_attnfeatencoder(ResNeXtBottleneck3D, [2, 2, 2], cardinality=32, base_width=4, norm_type=norm_type, in_channels_2d=in_channels_2d)
+
 
 class Fuse_Attn_Decoder(nn.Module):
     def __init__(self, block, layers, cardinality=32, base_width=4, self_attn=True):
@@ -126,17 +146,19 @@ class Fuse_Attn_Decoder(nn.Module):
         self.embed_dim = 1024
         self.channel_proj = nn.Conv2d(2048, self.embed_dim, kernel_size=1)
         if self.self_attn:
-            self.attn_layernorm = nn.LayerNorm(self.embed_dim)
+            # Checkpoint stores a single `decoder.layernorm` (no `attn_layernorm`,
+            # no `post_ln`); it is reused for the pre-norm and the post-residual norm.
             self.attention_fuse = nn.MultiheadAttention(embed_dim=self.embed_dim, num_heads=8, batch_first=True)
             self.linear = nn.Linear(self.embed_dim, self.embed_dim)
-            self.post_ln = nn.LayerNorm(self.embed_dim)
+            self.layernorm = nn.LayerNorm(self.embed_dim)
             self.relu = nn.ReLU(inplace=True)
         self.in_channels = self.embed_dim
         self.layer1 = self._make_layer(block, self.embed_dim, layers[0], stride=2, cardinality=cardinality, base_width=base_width*8)
         self.layer2 = self._make_layer(block, self.embed_dim, layers[1], stride=2, cardinality=cardinality, base_width=base_width*8)
         self.layer3 = self._make_layer(block, self.embed_dim, layers[2], stride=2, cardinality=cardinality, base_width=base_width*8)
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
-        self.fc = nn.Linear(self.embed_dim, 1)
+        # Checkpoint head is (2, 1024): 2-class softmax classifier.
+        self.fc = nn.Linear(self.embed_dim, 2)
 
     def _make_layer(self, block, out_channels, blocks, stride, cardinality, base_width):
         layers = [block(self.in_channels, out_channels, stride, cardinality, base_width)]
@@ -177,18 +199,16 @@ class Fuse_Attn_Decoder(nn.Module):
             x = torch.cat((img_feat, attn_feat), dim=1)  # (B, 2048, H, W)
             x = self.channel_proj(x)                     # (B, 1024, H, W)
 
-        embed_attn = None
         if self.self_attn and attn_feat is not None:
             x_pe = self.add_2d_positional_encoding(x)
             B, C, H, W = x_pe.shape
             x_flat = x_pe.flatten(2).transpose(1, 2)     # (B, HW, C)
-            x_norm = self.attn_layernorm(x_flat)
+            x_norm = self.layernorm(x_flat)
             x_attn = self.attention_fuse(x_norm, x_norm, x_norm)[0]
             x_attn = self.linear(x_attn)
-            x_attn = self.post_ln(x_attn + x_flat)
-            x_attn = torch.relu(x_attn)
+            x_attn = self.layernorm(x_attn + x_flat)
+            x_attn = self.relu(x_attn)
             x = x_attn.transpose(1, 2).view(B, C, H, W)
-            embed_attn = x_attn.mean(dim=1)              # (B,C)
 
         x = x.unsqueeze(2)
         x = self.layer1(x)
@@ -197,9 +217,10 @@ class Fuse_Attn_Decoder(nn.Module):
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
 
-        embed = embed_attn if embed_attn is not None else x
-        x_out = self.fc(x)  # (B,1)
+        embed = x
+        x_out = self.fc(x)  # (B, 2)
         return x_out, embed
+
 
 class Fuse_Decoder(nn.Module):
     def __init__(self, block, layers, cardinality=32, base_width=4):
@@ -209,7 +230,7 @@ class Fuse_Decoder(nn.Module):
         self.layer2 = self._make_layer(block, 2048, layers[1], stride=2, cardinality=cardinality, base_width=base_width*8)
         self.layer3 = self._make_layer(block, 2048, layers[2], stride=2, cardinality=cardinality, base_width=base_width*8)
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
-        self.fc = nn.Linear(2048, 1)
+        self.fc = nn.Linear(2048, 2)
 
     def _make_layer(self, block, out_channels, blocks, stride, cardinality, base_width):
         layers = [block(self.in_channels, out_channels, stride, cardinality, base_width)]
@@ -227,8 +248,9 @@ class Fuse_Decoder(nn.Module):
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
         embed = x
-        x = self.fc(x)  # (B,1)
+        x = self.fc(x)  # (B, 2)
         return x, embed
+
 
 def get_feat_decoder(is_fuse=True, is_self_attn=True):
     if is_fuse:
@@ -238,6 +260,7 @@ def get_feat_decoder(is_fuse=True, is_self_attn=True):
             return Fuse_Attn_Decoder(ResNeXtBottleneck3D, [2, 2, 2], cardinality=32, base_width=4, self_attn=False)
     else:
         return Fuse_Decoder(ResNeXtBottleneck3D, [3, 2, 2], cardinality=32, base_width=4)
+
 
 class Classifier(nn.Module):
     def __init__(
@@ -253,9 +276,23 @@ class Classifier(nn.Module):
         self.attn_encoder = get_feat_encoder(norm_type=norm_layer, in_channels_2d=attn_in_channels)  # -> (B,1024,T,H,W)
         self.decoder = get_feat_decoder(is_fuse=True, is_self_attn=self_attn)
 
+        # Triplet / contrastive projection heads (present in the released checkpoint
+        # as `img_proj.*` and `attn_proj.*`). Each head: 1024 -> proj_dim.
+        # The two projected vectors are concatenated to form the (2*proj_dim)-d
+        # embedding used by the contrastive loss (default 512*2 = 1024 == embedding_size).
+        self.pool = nn.AdaptiveAvgPool3d((1, 1, 1))
+        self.img_proj = ProjectionHead(in_dim=1024, proj_dim=proj_dim)
+        self.attn_proj = ProjectionHead(in_dim=1024, proj_dim=proj_dim)
+
     def forward(self, x, attn_feat):
         img_feat = self.img_encoder(x)
         attn_feat_encoded = self.attn_encoder(attn_feat)
-        out, embed_fused = self.decoder(img_feat, attn_feat_encoded)
+        out, _ = self.decoder(img_feat, attn_feat_encoded)
 
-        return out, embed_fused
+        vi = self.pool(img_feat).flatten(1)            # (B, 1024)
+        va = self.pool(attn_feat_encoded).flatten(1)   # (B, 1024)
+        ei = self.img_proj(vi)                         # (B, proj_dim)
+        ea = self.attn_proj(va)                        # (B, proj_dim)
+        embed = torch.cat([ei, ea], dim=1)             # (B, 2*proj_dim)
+
+        return out, embed

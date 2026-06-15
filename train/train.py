@@ -128,21 +128,21 @@ def train(args):
 
             out, embed = model(x, attn)
 
-            logits = out.squeeze(1)
-            bce = F.binary_cross_entropy_with_logits(logits, y.float())
+            # 2-class softmax head (matches the released checkpoint's fc=(2,1024)).
+            ce = F.cross_entropy(out, y.long())
 
             embed = F.normalize(embed, dim=1)
             contrastive = contrastive_criterion(embed, y.long())
 
-            loss = (1 - args.alpha) * bce + args.alpha * contrastive
+            loss = (1 - args.alpha) * ce + args.alpha * contrastive
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
             with torch.no_grad():
-                probs = torch.sigmoid(logits)
-                preds = (probs >= 0.5).long()
+                probs = torch.softmax(out, dim=1)[:, 1]
+                preds = out.argmax(dim=1).long()
 
                 batch_correct = (preds == y.long()).sum().item()
                 batch_count = y.numel()
@@ -156,7 +156,7 @@ def train(args):
                 print(
                     f"[Epoch {epoch}][Step {step}] "
                     f"loss={loss.item():.4f} "
-                    f"bce={bce.item():.4f} "
+                    f"ce={ce.item():.4f} "
                     f"contrastive={contrastive.item():.4f} "
                     f"batch_acc={batch_acc:.4f}"
                 )
@@ -182,16 +182,15 @@ def train(args):
 
                 out, embed = model(x, attn)
 
-                logits = out.squeeze(1)
-                bce = F.binary_cross_entropy_with_logits(logits, y.float())
+                ce = F.cross_entropy(out, y.long())
 
                 embed = F.normalize(embed, dim=1)
                 contrastive = contrastive_criterion(embed, y.long())
 
-                loss = (1 - args.alpha) * bce + args.alpha * contrastive
+                loss = (1 - args.alpha) * ce + args.alpha * contrastive
 
-                probs = torch.sigmoid(logits)
-                preds = (probs >= 0.5).long()
+                probs = torch.softmax(out, dim=1)[:, 1]
+                preds = out.argmax(dim=1).long()
 
                 batch_count = y.numel()
                 val_loss_sum += float(loss.detach().cpu()) * batch_count

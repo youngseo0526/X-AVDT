@@ -171,7 +171,8 @@ def main():
 
             out, _ = model(x, attn)
 
-            prob = torch.sigmoid(out.squeeze(1)).cpu().numpy()
+            # 2-class softmax head: P(fake) = softmax(logits)[:, 1]
+            prob = torch.softmax(out, dim=1)[:, 1].cpu().numpy()
 
             scores.extend(prob.tolist())
             labels.extend(y.cpu().numpy().tolist())
