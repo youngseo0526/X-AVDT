@@ -5,18 +5,12 @@ from torchvision.transforms.functional import normalize
 
 class ProjectionHead(nn.Module):
     """Projection head for the (triplet) contrastive embedding.
-
-    NOTE: the released checkpoint stores the inner Sequential weights under
-    indices `proj.0` and `proj.2` (i.e. a parameter-free layer sits at index 1).
-    We therefore use LayerNorm -> GELU -> Linear so the state_dict keys are
-    `proj.0.{weight,bias}` (LayerNorm) and `proj.2.{weight,bias}` (Linear),
-    matching `img_proj.*` / `attn_proj.*` in the checkpoint.
     """
     def __init__(self, in_dim=1024, proj_dim=512):
         super().__init__()
         self.proj = nn.Sequential(
-            nn.LayerNorm(in_dim),   # proj.0
-            nn.GELU(),              # proj.1 (no params -> index 1 skipped in state_dict)
+            nn.Linear(in_dim, in_dim),    # proj.0
+            nn.GELU(),                    # proj.1 (no params -> index 1 skipped in state_dict)
             nn.Linear(in_dim, proj_dim),  # proj.2
         )
 
@@ -134,8 +128,6 @@ class ResNeXt_attnfeatencoder(nn.Module):
 
 
 def get_feat_encoder(is_res_feat=True, norm_type="batch", in_channels_2d=320):
-    # Checkpoint `sa_triplet_dec_bs8_800_es.pt` has only layer3.{0,1}
-    # (no layer3.2 / layer3.3), i.e. layer3 holds 2 blocks -> [2, 2, 2].
     return ResNeXt_attnfeatencoder(ResNeXtBottleneck3D, [2, 2, 2], cardinality=32, base_width=4, norm_type=norm_type, in_channels_2d=in_channels_2d)
 
 
@@ -146,8 +138,6 @@ class Fuse_Attn_Decoder(nn.Module):
         self.embed_dim = 1024
         self.channel_proj = nn.Conv2d(2048, self.embed_dim, kernel_size=1)
         if self.self_attn:
-            # Checkpoint stores a single `decoder.layernorm` (no `attn_layernorm`,
-            # no `post_ln`); it is reused for the pre-norm and the post-residual norm.
             self.attention_fuse = nn.MultiheadAttention(embed_dim=self.embed_dim, num_heads=8, batch_first=True)
             self.linear = nn.Linear(self.embed_dim, self.embed_dim)
             self.layernorm = nn.LayerNorm(self.embed_dim)
@@ -268,7 +258,7 @@ class Classifier(nn.Module):
         self_attn=True,
         norm_layer="batch",
         attn_in_channels=320,
-        proj_dim=512,
+        proj_dim=1024,
     ):
         super().__init__()
 
@@ -276,10 +266,6 @@ class Classifier(nn.Module):
         self.attn_encoder = get_feat_encoder(norm_type=norm_layer, in_channels_2d=attn_in_channels)  # -> (B,1024,T,H,W)
         self.decoder = get_feat_decoder(is_fuse=True, is_self_attn=self_attn)
 
-        # Triplet / contrastive projection heads (present in the released checkpoint
-        # as `img_proj.*` and `attn_proj.*`). Each head: 1024 -> proj_dim.
-        # The two projected vectors are concatenated to form the (2*proj_dim)-d
-        # embedding used by the contrastive loss (default 512*2 = 1024 == embedding_size).
         self.pool = nn.AdaptiveAvgPool3d((1, 1, 1))
         self.img_proj = ProjectionHead(in_dim=1024, proj_dim=proj_dim)
         self.attn_proj = ProjectionHead(in_dim=1024, proj_dim=proj_dim)
