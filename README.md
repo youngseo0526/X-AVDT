@@ -137,7 +137,7 @@ python train/train.py --data_dir /path/to/pt/
 ```
 
 ## Evaluation
-Download the pretrained X-AVDT detector weights from the following [link](https://drive.google.com/file/d/1JLNw8desVE2aDgjjbHsSplaWbxmasRmK/view?usp=sharing). Then run the evaluation scripts:
+Download the pretrained X-AVDT detector weights from the following [link](https://drive.google.com/file/d/1O5Xov2UQMIApzSAf63aJ80owJjunkxS7/view?usp=sharing). Then run the evaluation scripts:
 ```bash
 python train/evaluate.py --data_dir /path/to/pt/ --ckpt results/x_avdt/model_best.pt 
 ```
